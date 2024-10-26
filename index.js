@@ -19,16 +19,16 @@ const generateKey = () => {
     return key;
 }
 
-app.post('/api', async (req, res) => {
-    const api_key = generateKey();
-    const api = new API({
-        api_key
-    });
-    await api.save();
-    res.json({ api_key });
-})
+// app.post('/api', async (req, res) => {
+//     const api_key = generateKey();
+//     const api = new API({
+//         api_key
+//     });
+//     await api.save();
+//     res.json({ api_key });
+// })
 
-app.get('/', async (req, res) => {
+app.get('/api/amazon', async (req, res) => {
     const searchTerm = req.query.q;
     const api_key = req.headers['x-api-key'];
     try {
@@ -71,21 +71,31 @@ app.get('/', async (req, res) => {
                     price: product.price,
                     link: product.link,
                     rating: product.rating?.split(' ')[0],
-                    totalReviews: product.totalReviews
+                    totalReviews: product.totalReviews.split(' ')[0]
                 };
             }
         }).filter(Boolean)
         // store data in database
 
-        const datatoStore = formattedResult?.map(product => {
-            return {
-                ...product,
-                query: searchTerm
-            };
-        })
-        await Product.deleteMany({ query: searchTerm });
+        if (formattedResult.length > 0) {
+            const datatoStore = formattedResult?.map(product => {
+                return {
+                    ...product,
+                    query: searchTerm
+                };
+            })
+            await Product.deleteMany({ query: searchTerm });
 
-        await Product.insertMany(datatoStore);
+            await Product.insertMany(datatoStore);
+        }
+        else {
+            const data = await Product.find({ query: searchTerm });
+            return res.json({
+                success: true,
+                total: data.length,
+                data
+            })
+        }
 
         // Return the formatted result
         res.json({
@@ -99,7 +109,50 @@ app.get('/', async (req, res) => {
     }
 });
 
+app.get('/api/products', async (req, res) => {
+    try {
+        const q = req.query.q;
+        const api_key = req.headers['x-api-key'];
 
+        const limit = parseInt(req.query.limit) || 30;
+        const page = parseInt(req.query.page) || 1;
+        const skip = (page - 1) * limit;
+
+        if (!api_key) {
+            return res.status(401).send({ error: 'Missing API key' });
+        }
+
+        const api = await API.findOne({ api_key });
+        if (!api) {
+            return res.status(401).send({ error: 'Invalid API key' });
+        }
+
+        const filters = {};
+        if (q) {
+            filters.title = { $regex: q, $options: 'i' };
+        }
+
+        const products = await Product.find(filters)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .exec();
+
+        const total = await Product.countDocuments(filters); // Await the countDocuments method
+
+        res.json({
+            success: true,
+            result: products.length,
+            total: total,
+            data: products
+        });
+    } catch (error) {
+        res.status(500).send({
+            error: 'An error occurred while fetching products.',
+            message: error.message
+        });
+    }
+});
 
 // connect to database
 // 1Tig2Zm7O6AL1q5Q
