@@ -109,6 +109,43 @@ app.get('/api/amazon', async (req, res) => {
     }
 });
 
+app.get('/api/duplicate', async (req, res) => {
+    const api_key = req.headers['x-api-key'];
+    try {
+        // Check for API key
+        const api = await API.findOne({ api_key });
+        if (!api) {
+            return res.status(401).send({ error: 'Invalid API key' });
+        }
+
+        // Fetch all products
+        const products = await Product.find();
+
+        // Find duplicates based on `_id`
+        const duplicates = Object.values(
+            products.reduce((acc, item) => {
+                acc[item.id] = acc[item.id] || { ...item.toObject(), count: 0 };
+                acc[item.id].count += 1;
+                return acc;
+            }, {})
+        ).filter(item => item.count > 1);
+
+        // Remove duplicates
+        await Product.deleteMany({ _id: { $in: duplicates.map(item => item._id) } });
+        // Send response
+        res.json({
+            success: true,
+            total: duplicates.length,
+            data: duplicates
+        });
+    } catch (error) {
+        res.status(500).send({
+            error: 'An error occurred while fetching products.',
+            message: error.message
+        });
+    }
+});
+
 app.get('/api/products', async (req, res) => {
     try {
         const q = req.query.q;
@@ -129,7 +166,10 @@ app.get('/api/products', async (req, res) => {
 
         const filters = {};
         if (q) {
-            filters.title = { $regex: q, $options: 'i' };
+            filters.$or = [
+                { query: new RegExp(q, 'i') },
+                { title: new RegExp(q, 'i') }
+            ];
         }
 
         const products = await Product.find(filters)
