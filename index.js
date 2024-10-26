@@ -71,7 +71,7 @@ app.get('/api/amazon', async (req, res) => {
                     price: product.price,
                     link: product.link,
                     rating: product.rating?.split(' ')[0],
-                    totalReviews: product.totalReviews.split(' ')[0]
+                    totalReviews: product.totalReviews?.split(' ')[0]
                 };
             }
         }).filter(Boolean)
