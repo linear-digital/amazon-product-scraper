@@ -197,7 +197,7 @@ app.get('/api/products', async (req, res) => {
 // connect to database
 // 1Tig2Zm7O6AL1q5Q
 //amazon
-mongoose.connect('mongodb+srv://amazon:1Tig2Zm7O6AL1q5Q@genzit.roulp.mongodb.net/products?retryWrites=true&w=majority&appName=Genzit', {
+mongoose.connect(process.env.DB_URL, {
     useNewUrlParser: true,
     useUnifiedTopology: true
 })
